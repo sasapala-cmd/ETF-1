@@ -684,18 +684,70 @@ function drawChart(series, currentPrice){
    Data fetch
 ========================= */
 
-// 今日收盤：TWSE OpenAPI
+// 今日收盤：改用 TWSE CSV（較不容易被 OpenAPI/CORS 卡住）
 async function fetchTodayFromOpenAPI(stockNo){
-  const url = 'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL';
-  const res = await fetch(url, { cache:'no-store' });
-  if(!res.ok) throw new Error('OpenAPI 回應失敗：HTTP ' + res.status);
-  const data = await res.json();
-  const row = data.find(x => String(x.Code).trim() === String(stockNo).trim());
-  if(!row) throw new Error('在今日資料中找不到代號：' + stockNo + '（可能今日無交易/停牌/代號錯誤）');
-  const name = row.Name || '';
-  const close = Number(row.ClosingPrice || row.Closing || row.Close || 0);
-  const date = row.Date || row.TradeDate || row.date || '';
-  return { name, close, date, raw: row };
+  // 保持函式名不變，避免你後面按鈕事件還要改
+  const url = 'https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=open_data';
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('TWSE CSV 回應失敗：HTTP ' + res.status);
+
+  const text = await res.text();
+
+  // 簡易 CSV 解析（處理雙引號與逗號）
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) throw new Error('CSV 內容異常（無資料）');
+
+  // 解析一行 CSV（支援 "0056","元大高股息","1,234" 這種）
+  const parseCSVLine = (line) => {
+    const out = [];
+    let cur = '';
+    let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQ = !inQ; continue; }
+      if (ch === ',' && !inQ) { out.push(cur); cur = ''; continue; }
+      cur += ch;
+    }
+    out.push(cur);
+    return out.map(s => s.trim());
+  };
+
+  // 第一行是欄位名：證券代號,證券名稱,成交股數,...,收盤價,...
+  // 我們找出「證券代號」「證券名稱」「收盤價」所在欄位
+  const header = parseCSVLine(lines[0]);
+  const idxCode = header.indexOf('證券代號');
+  const idxName = header.indexOf('證券名稱');
+  const idxClose = header.indexOf('收盤價');
+
+  if (idxCode < 0 || idxName < 0 || idxClose < 0) {
+    throw new Error('CSV 欄位找不到（欄位名可能變動）');
+  }
+
+  const target = String(stockNo).trim();
+  let found = null;
+
+  for (let i = 1; i < lines.length; i++) {
+    const row = parseCSVLine(lines[i]);
+    if (!row[idxCode]) continue;
+    if (String(row[idxCode]).trim() === target) {
+      found = row;
+      break;
+    }
+  }
+  if (!found) throw new Error('找不到代號：' + target + '（可能今日無交易/停牌/代號錯）');
+
+  const name = found[idxName] || '';
+  const close = Number(String(found[idxClose] || '').replace(/,/g, ''));
+  if (!(close > 0)) throw new Error('收盤價解析失敗：' + found[idxClose]);
+
+  // 這個 CSV 沒有直接給日期：用今天日期當顯示（台北時間）
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const date = `${yyyy}-${mm}-${dd}`;
+
+  return { name, close, date, raw: found };
 }
 
 // 月資料：TWSE STOCK_DAY（抓該月最後一日收盤當月收盤）
