@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ETF 統計計算小工具（免費前端版）</title>
+  <style>
+    :root { --bg:#0b0f14; --card:#111826; --muted:#9aa4b2; --text:#e6edf3; --line:#233044; --accent:#59c2ff; --good:#42d392; --warn:#ffb020; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC","Segoe UI",Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
+    .wrap { max-width:1180px; margin:24px auto; padding:0 16px 40px; }
+    h1 { font-size:20px; margin:0 0 12px; letter-spacing:.5px; }
+    .grid { display:grid; grid-template-columns: 1fr; gap:14px; }
+    @media (min-width: 980px){ .grid { grid-template-columns: 420px 1fr; } }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; }
+    .card h2 { font-size:14px; margin:0 0 10px; color:#cfe6ff; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .row3 { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; }
+    label { display:block; font-size:12px; color:var(--muted); margin:8px 0 6px; }
+    input, select, textarea, button {
+      width:100%; box-sizing:border-box; border-radius:10px;
+      border:1px solid var(--line); background:#0f1623; color:var(--text);
+      padding:10px 10px; font-size:14px;
+    }
+    textarea { min-height:96px; resize:vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    button { cursor:pointer; background: linear-gradient(180deg,#16324f,#0f1c2d); border:1px solid #2b4769; }
+    button:hover { border-color:#3b6aa1; }
+    .muted { color:var(--muted); font-size:12px; line-height:1.5; }
+    .pill { display:inline-block; padding:3px 8px; border:1px solid var(--line); border-radius:999px; font-size:12px; color:var(--muted); margin-left:8px; }
+    .kpiGrid { display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; }
+    @media (min-width: 980px){ .kpiGrid { grid-template-columns: repeat(4, 1fr);} }
+    .kpi { border:1px solid var(--line); border-radius:12px; padding:10px; background:#0f1623; }
+    .kpi .t { font-size:12px; color:var(--muted); }
+    .kpi .v { font-size:18px; margin-top:6px; font-variant-numeric: tabular-nums; }
+    .kpi .s { font-size:12px; color:var(--muted); margin-top:2px; }
+    .good { color:var(--good); }
+    .warn { color:var(--warn); }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th, td { border-bottom:1px solid var(--line); padding:8px 6px; text-align:left; vertical-align:top; }
+    th { color:#cfe6ff; font-weight:600; }
+    .right { text-align:right; font-variant-numeric: tabular-nums; }
+    .flex { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .smallBtn { width:auto; padding:8px 10px; font-size:13px; }
+    canvas { width:100%; height:240px; border:1px solid var(--line); border-radius:12px; background:#0f1623; }
+    .hr { height:1px; background:var(--line); margin:10px 0; }
+    .note { border-left:3px solid #2b4769; padding-left:10px; margin-top:8px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>ETF 統計計算小工具 <span class="pill">純前端 / 可放 GitHub Pages</span></h1>
+
+    <div class="grid">
+      <!-- Left: Inputs -->
+      <div class="card">
+        <h2>1) 基本資料</h2>
+
+        <label>ETF 名稱（可選）</label>
+        <input id="etfName" placeholder="例如：0056 / 00878 / 自訂" />
+
+        <div class="row">
+          <div>
+            <label>目前股價（市價）</label>
+            <input id="currentPrice" type="number" step="0.01" value="30" />
+          </div>
+          <div>
+            <label>目前持有股數（若無可填 0）</label>
+            <input id="initShares" type="number" step="1" value="0" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>已投入成本（總成本，含手續費可自行加）</label>
+            <input id="initCost" type="number" step="1" value="0" />
+          </div>
+          <div>
+            <label>買入手續費率（%）<span class="pill">可填 0</span></label>
+            <input id="feeRate" type="number" step="0.01" value="0.1425" />
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <h2>2) 股息 / 配息設定</h2>
+        <div class="row">
+          <div>
+            <label>每次配息（每股，單位：元）</label>
+            <input id="divPerPay" type="number" step="0.0001" value="0.5" />
+          </div>
+          <div>
+            <label>一年配息次數</label>
+            <select id="divFreq">
+              <option value="12">每月（12 次）</option>
+              <option value="6">雙月（6 次）</option>
+              <option value="4">季配（4 次）</option>
+              <option value="2">半年（2 次）</option>
+              <option value="1">年配（1 次）</option>
+              <option value="custom" selected>自訂月份</option>
+            </select>
+          </div>
+        </div>
+
+        <label>發息月（自訂月份，逗號分隔）</label>
+        <input id="divMonths" value="1,2,3,4,5,6,7,8,9,10,11,12" />
+
+        <div class="row">
+          <div>
+            <label>發息日（1~31，用於現金流顯示）</label>
+            <input id="divDay" type="number" step="1" value="10" />
+          </div>
+          <div>
+            <label>年度股息（每股）<span class="pill">自動計算</span></label>
+            <input id="annualDiv" type="number" step="0.0001" disabled />
+          </div>
+        </div>
+
+        <div class="note muted">
+          年度股息（每股）= 每次配息 × 發息月數。若你的 ETF 每次配息不固定，可用「平均每次配息」填入，做估算。
+        </div>
+
+        <div class="hr"></div>
+
+        <h2>3) 持續買入（DCA）</h2>
+        <div class="row">
+          <div>
+            <label>每月買入金額（元）</label>
+            <input id="dcaAmount" type="number" step="1" value="10000" />
+          </div>
+          <div>
+            <label>DCA 月數（例如 24=2年）</label>
+            <input id="dcaMonths" type="number" step="1" value="24" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>買入價格來源</label>
+            <select id="priceMode">
+              <option value="fixed" selected>固定用「目前股價」</option>
+              <option value="history">用「歷史股價序列」（每月一筆）</option>
+            </select>
+          </div>
+          <div>
+            <label>股息是否再投入（簡化：以當期買入價再買）</label>
+            <select id="reinvest">
+              <option value="no" selected>不再投入（領現金）</option>
+              <option value="yes">再投入（簡化模型）</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <h2>4) 歷史股價（可貼上 CSV）</h2>
+        <label>格式（每行一筆）：YYYY-MM,price（例：2024-01,28.5）</label>
+        <textarea id="priceCsv" placeholder="2024-01,28.5
+2024-02,29.1
+2024-03,30.2"></textarea>
+        <div class="flex">
+          <button class="smallBtn" id="loadSample">載入範例資料</button>
+          <button class="smallBtn" id="clearHistory">清空歷史資料</button>
+        </div>
+
+        <div class="hr"></div>
+        <button id="calcBtn">計算 / 更新結果</button>
+
+        <div class="note muted">
+          回本年數與殖利率皆為估算：以「目前股息水準」推算，不代表未來一定相同。
+        </div>
+      </div>
+
+      <!-- Right: Outputs -->
+      <div class="card">
+        <h2>結果總覽</h2>
+        <div class="kpiGrid" id="kpis"></div>
+
+        <div class="hr"></div>
+
+        <div class="row">
+          <div class="card" style="padding:12px; margin:0; background:#0f1623;">
+            <h2 style="margin:0 0 8px;">股息現金流（年度）</h2>
+            <div class="muted">依發息月/日，顯示「每年預估」的股息月份與金額（以目前持有 + DCA 模擬後為準）。</div>
+            <div style="height:10px;"></div>
+            <table>
+              <thead>
+                <tr>
+                  <th>發息日</th>
+                  <th>月份</th>
+                  <th class="right">每次股息（元）</th>
+                </tr>
+              </thead>
+              <tbody id="cashflowRows"></tbody>
+            </table>
+          </div>
+
+          <div class="card" style="padding:12px; margin:0; background:#0f1623;">
+            <h2 style="margin:0 0 8px;">DCA 模擬摘要</h2>
+            <div class="muted">簡化假設：每月固定買入一次；若選「歷史股價序列」則每月用該月價格，超出序列則使用目前股價。</div>
+            <div style="height:10px;"></div>
+            <table>
+              <tbody id="dcaSummary"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <h2>歷史股價走勢（簡易圖）</h2>
+        <canvas id="chart" width="1000" height="300"></canvas>
+        <div class="muted note">
+          圖表為簡易線圖（不含高低點與成交量）。若你貼入多年資料，就能看到長期趨勢。
+        </div>
+
+        <div class="hr"></div>
+
+        <h2>歷史股價統計（由你貼入的資料計算）</h2>
+        <table>
+          <tbody id="histStats"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- Utilities ----------
+    const fmt0 = n => isFinite(n) ? n.toLocaleString('zh-TW', { maximumFractionDigits: 0 }) : '-';
+    const fmt2 = n => isFinite(n) ? n.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
+    const fmt4 = n => isFinite(n) ? n.toLocaleString('zh-TW', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
+    const pct2 = n => isFinite(n) ? (n * 100).toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%' : '-';
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+    function parseMonths(s){
+      const arr = (s || '').split(',').map(x => parseInt(x.trim(),10)).filter(x => Number.isInteger(x) && x>=1 && x<=12);
+      // unique + sort
+      return Array.from(new Set(arr)).sort((a,b)=>a-b);
+    }
+
+    function parsePriceCsv(text){
+      // lines: YYYY-MM,price
+      const lines = (text || '').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+      const pts = [];
+      for(const line of lines){
+        const parts = line.split(',').map(x=>x.trim());
+        if(parts.length < 2) continue;
+        const date = parts[0];
+        const price = Number(parts[1]);
+        if(!isFinite(price) || price <= 0) continue;
+        // date validation loosely
+        pts.push({ date, price });
+      }
+      return pts;
+    }
+
+    function quantile(sortedArr, q){
+      if(sortedArr.length === 0) return NaN;
+      const pos = (sortedArr.length - 1) * q;
+      const base = Math.floor(pos);
+      const rest = pos - base;
+      if(sortedArr[base+1] !== undefined) return sortedArr[base] + rest*(sortedArr[base+1]-sortedArr[base]);
+      return sortedArr[base];
+    }
+
+    // ---------- Core Model ----------
+    function calcAnnualDividendPerShare(divPerPay, months){
+      return divPerPay * months.length;
+    }
+
+    function computeYields(currentPrice, annualDivPerShare, totalCost, totalShares){
+      const marketValue = currentPrice * totalShares;
+      const annualIncome = annualDivPerShare * totalShares;
+
+      const yieldOnPrice = currentPrice > 0 ? annualDivPerShare / currentPrice : NaN; // per share
+      const yieldOnCost = totalCost > 0 ? annualIncome / totalCost : NaN; // portfolio
+      const yieldOnMarket = marketValue > 0 ? annualIncome / marketValue : NaN;
+
+      return { marketValue, annualIncome, yieldOnPrice, yieldOnCost, yieldOnMarket };
+    }
+
+    function breakevenYears(totalCost, annualIncome){
+      if(!(totalCost > 0) || !(annualIncome > 0)) return NaN;
+      return totalCost / annualIncome;
+    }
+
+    function simulateDCA({
+      initShares, initCost, feeRatePct,
+      dcaAmount, dcaMonths, priceMode, currentPrice, priceSeries,
+      annualDivPerShare, divMonths, divDay,
+      reinvest
+    }){
+      // Simplified: each month buy once; fee deducted from buy amount (buyAmount * (1 - fee)).
+      // Dividend paid on specified months (e.g. [1,4,7,10]) at divDay; assume at month end event after monthly buy.
+      // If reinvest, dividends buy shares at that month price (same price used for that month).
+      const feeRate = clamp(feeRatePct/100, 0, 0.2);
+
+      let shares = initShares;
+      let cost = initCost;
+      let dividendsCash = 0;
+
+      const series = (priceSeries || []);
+      const getPriceForMonthIndex = (i) => {
+        if(priceMode === 'history' && series[i] && isFinite(series[i].price)) return series[i].price;
+        return currentPrice;
+      };
+
+      const monthIndexToMonthNumber = (i) => ((i % 12) + 1); // 1..12 repeating
+
+      for(let i=0;i<dcaMonths;i++){
+        const px = getPriceForMonthIndex(i);
+        const netBuy = dcaAmount * (1 - feeRate);
+        const buyShares = px > 0 ? (netBuy / px) : 0;
+        shares += buyShares;
+        cost += dcaAmount; // treat full paid amount as cost (includes fee)
+
+        // dividend event if this month is in divMonths (by month number)
+        const monthNum = monthIndexToMonthNumber(i);
+        if(divMonths.includes(monthNum)){
+          const div = annualDivPerShare / divMonths.length; // per-pay per-share (consistent with inputs)
+          const cash = shares * div;
+          if(reinvest === 'yes'){
+            const reinvestNet = cash * (1 - feeRate);
+            const reinvestShares = px > 0 ? (reinvestNet / px) : 0;
+            shares += reinvestShares;
+            // cost: if reinvest, you are not paying extra out of pocket; do not add to cost
+          }else{
+            dividendsCash += cash;
+          }
+        }
+      }
+
+      const avgCostPerShare = shares > 0 ? (cost / shares) : NaN;
+      return { shares, cost, dividendsCash, avgCostPerShare };
+    }
+
+    // ---------- Rendering ----------
+    function renderKpis(data){
+      const el = document.getElementById('kpis');
+      el.innerHTML = '';
+
+      const items = [
+        { t:'總持股（股）', v: fmt4(data.totalShares), s:'含原持有 + DCA（含再投入如選）' },
+        { t:'總成本（元）', v: fmt0(data.totalCost), s:'含每月買入金額；不含稅（自行估）' },
+        { t:'市值（元）', v: fmt0(data.marketValue), s:'以目前股價計算' },
+        { t:'平均成本（元/股）', v: fmt4(data.avgCostPerShare), s:'總成本 ÷ 總持股' },
+
+        { t:'年度股息（每股）', v: fmt4(data.annualDivPerShare), s:'每次配息 × 發息月數' },
+        { t:'年度股息（元）', v: fmt0(data.annualIncome), s:'年度股息（每股）× 總持股' },
+        { t:'殖利率（以市價）', v: pct2(data.yieldOnPrice), s:'年度股息（每股）÷ 目前股價' },
+        { t:'殖利率（以成本）', v: pct2(data.yieldOnCost), s:'年度股息（元）÷ 總成本' },
+
+        { t:'殖利率（以市值）', v: pct2(data.yieldOnMarket), s:'年度股息（元）÷ 市值' },
+        { t:'回本年數（估算）', v: isFinite(data.breakevenY) ? data.breakevenY.toFixed(2)+' 年' : '-', s:'總成本 ÷ 年度股息（元）' },
+        { t:'股息累積（DCA期間，若不再投入）', v: fmt0(data.divCash), s:'僅於「不再投入」時累積現金股息' },
+        { t:'回本月數（估算）', v: isFinite(data.breakevenY) ? Math.round(data.breakevenY*12).toLocaleString('zh-TW')+' 月' : '-', s:'回本年數×12（四捨五入）' },
+      ];
+
+      for(const it of items){
+        const d = document.createElement('div');
+        d.className = 'kpi';
+        d.innerHTML = `<div class="t">${it.t}</div><div class="v">${it.v}</div><div class="s">${it.s}</div>`;
+        el.appendChild(d);
+      }
+    }
+
+    function renderCashflow(months, day, perPayCash){
+      const tbody = document.getElementById('cashflowRows');
+      tbody.innerHTML = '';
+      for(const m of months){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="mono">${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}</td>
+                        <td>${m} 月</td>
+                        <td class="right">${fmt0(perPayCash)}</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function renderDcaSummary(sim, currentPrice, annualDivPerShare){
+      const tbody = document.getElementById('dcaSummary');
+      tbody.innerHTML = '';
+      const marketValue = sim.shares * currentPrice;
+      const annualIncome = sim.shares * annualDivPerShare;
+
+      const rows = [
+        ['DCA 後總持股（股）', fmt4(sim.shares)],
+        ['DCA 後總成本（元）', fmt0(sim.cost)],
+        ['DCA 後市值（元）', fmt0(marketValue)],
+        ['DCA 後平均成本（元/股）', fmt4(sim.avgCostPerShare)],
+        ['DCA 後年度股息（元）', fmt0(annualIncome)],
+        ['（若不再投入）DCA 期間股息現金（元）', fmt0(sim.dividendsCash)],
+      ];
+      for(const [k,v] of rows){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<th>${k}</th><td class="right">${v}</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function renderHistStats(series){
+      const el = document.getElementById('histStats');
+      el.innerHTML = '';
+      if(!series || series.length === 0){
+        el.innerHTML = `<tr><th>狀態</th><td class="right">未提供歷史股價資料</td></tr>`;
+        return;
+      }
+      const prices = series.map(p=>p.price).filter(x=>isFinite(x)).sort((a,b)=>a-b);
+      const min = prices[0];
+      const max = prices[prices.length-1];
+      const p25 = quantile(prices, 0.25);
+      const p50 = quantile(prices, 0.50);
+      const p75 = quantile(prices, 0.75);
+
+      const first = series[0];
+      const last = series[series.length-1];
+      const change = (last.price - first.price);
+      const changePct = first.price > 0 ? (change / first.price) : NaN;
+
+      const rows = [
+        ['筆數（每月）', fmt0(series.length)],
+        ['期間', `${first.date} → ${last.date}`],
+        ['最低價', fmt2(min)],
+        ['最高價', fmt2(max)],
+        ['中位數', fmt2(p50)],
+        ['25% 分位', fmt2(p25)],
+        ['75% 分位', fmt2(p75)],
+        ['期間變動', `${fmt2(change)}（${pct2(changePct)}）`],
+      ];
+      for(const [k,v] of rows){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<th>${k}</th><td class="right">${v}</td>`;
+        el.appendChild(tr);
+      }
+    }
+
+    function drawChart(series, currentPrice){
+      const canvas = document.getElementById('chart');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+
+      // clear
+      ctx.clearRect(0,0,w,h);
+
+      // background grid
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#233044';
+      ctx.lineWidth = 1;
+      for(let i=1;i<=4;i++){
+        const y = (h/5)*i;
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+      }
+
+      if(!series || series.length < 2){
+        // show current price line only
+        ctx.fillStyle = '#9aa4b2';
+        ctx.font = '16px -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif';
+        ctx.fillText('尚未提供足夠的歷史資料（至少 2 筆）', 20, 40);
+        return;
+      }
+
+      const prices = series.map(p=>p.price);
+      const min = Math.min(...prices);
+      const max = Math.max(...prices);
+      const pad = (max-min)*0.08 || (max*0.08) || 1;
+      const lo = min - pad;
+      const hi = max + pad;
+
+      const xFor = i => (i/(series.length-1)) * (w-40) + 20;
+      const yFor = v => {
+        const t = (v - lo) / (hi - lo);
+        return (1 - t) * (h-40) + 20;
+      };
+
+      // line
+      ctx.strokeStyle = '#59c2ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for(let i=0;i<series.length;i++){
+        const x = xFor(i);
+        const y = yFor(series[i].price);
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+
+      // labels (min/max)
+      ctx.fillStyle = '#9aa4b2';
+      ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
+      ctx.fillText(`min ${min.toFixed(2)}`, 22, h-18);
+      ctx.fillText(`max ${max.toFixed(2)}`, 22, 18);
+
+      // current price marker (optional)
+      if(isFinite(currentPrice) && currentPrice > 0){
+        const y = yFor(currentPrice);
+        ctx.strokeStyle = '#42d392';
+        ctx.setLineDash([6,6]);
+        ctx.beginPath(); ctx.moveTo(20,y); ctx.lineTo(w-20,y); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#42d392';
+        ctx.fillText(`current ${currentPrice.toFixed(2)}`, w-180, y-6);
+      }
+
+      // x labels (first/last)
+      ctx.fillStyle = '#9aa4b2';
+      ctx.font = '12px -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif';
+      ctx.fillText(series[0].date, 20, h-6);
+      const last = series[series.length-1].date;
+      const tw = ctx.measureText(last).width;
+      ctx.fillText(last, w-20-tw, h-6);
+    }
+
+    // ---------- Main Calc ----------
+    function calc(){
+      const name = document.getElementById('etfName').value.trim();
+      const currentPrice = Number(document.getElementById('currentPrice').value);
+      const initShares = Number(document.getElementById('initShares').value);
+      const initCost = Number(document.getElementById('initCost').value);
+      const feeRatePct = Number(document.getElementById('feeRate').value);
+
+      const divPerPay = Number(document.getElementById('divPerPay').value);
+      const divFreq = document.getElementById('divFreq').value;
+      let months = parseMonths(document.getElementById('divMonths').value);
+      const divDay = clamp(Number(document.getElementById('divDay').value), 1, 31);
+
+      // if user selected non-custom, auto-generate months
+      if(divFreq !== 'custom'){
+        const f = parseInt(divFreq,10);
+        if(f === 12) months = [1,2,3,4,5,6,7,8,9,10,11,12];
+        else if(f === 6) months = [1,3,5,7,9,11];
+        else if(f === 4) months = [1,4,7,10];
+        else if(f === 2) months = [1,7];
+        else if(f === 1) months = [12];
+        document.getElementById('divMonths').value = months.join(',');
+      }
+
+      const annualDivPerShare = calcAnnualDividendPerShare(divPerPay, months);
+      document.getElementById('annualDiv').value = annualDivPerShare.toFixed(4);
+
+      const dcaAmount = Number(document.getElementById('dcaAmount').value);
+      const dcaMonths = Math.max(0, Math.floor(Number(document.getElementById('dcaMonths').value)));
+      const priceMode = document.getElementById('priceMode').value;
+      const reinvest = document.getElementById('reinvest').value;
+
+      const series = parsePriceCsv(document.getElementById('priceCsv').value);
+
+      // simulate DCA
+      const sim = simulateDCA({
+        initShares, initCost, feeRatePct,
+        dcaAmount, dcaMonths, priceMode, currentPrice, priceSeries: series,
+        annualDivPerShare, divMonths: months, divDay,
+        reinvest
+      });
+
+      const totalShares = sim.shares;
+      const totalCost = sim.cost;
+      const avgCostPerShare = sim.avgCostPerShare;
+
+      const y = computeYields(currentPrice, annualDivPerShare, totalCost, totalShares);
+      const beY = breakevenYears(totalCost, y.annualIncome);
+
+      // per-pay cashflow amount (annualDivPerShare/numPays * totalShares)
+      const perPayDivPerShare = (months.length > 0) ? (annualDivPerShare / months.length) : 0;
+      const perPayCash = perPayDivPerShare * totalShares;
+
+      // render
+      renderKpis({
+        etfName: name,
+        totalShares, totalCost, avgCostPerShare,
+        annualDivPerShare,
+        marketValue: y.marketValue,
+        annualIncome: y.annualIncome,
+        yieldOnPrice: y.yieldOnPrice,
+        yieldOnCost: y.yieldOnCost,
+        yieldOnMarket: y.yieldOnMarket,
+        breakevenY: beY,
+        divCash: sim.dividendsCash
+      });
+
+      renderCashflow(months, divDay, perPayCash);
+      renderDcaSummary(sim, currentPrice, annualDivPerShare);
+      renderHistStats(series);
+      drawChart(series, currentPrice);
+    }
+
+    // ---------- Events ----------
+    document.getElementById('calcBtn').addEventListener('click', calc);
+
+    document.getElementById('divFreq').addEventListener('change', () => {
+      // adjust months if not custom
+      calc();
+    });
+
+    document.getElementById('loadSample').addEventListener('click', () => {
+      const sample = [
+        '2024-01,28.50',
+        '2024-02,29.10',
+        '2024-03,30.20',
+        '2024-04,29.60',
+        '2024-05,30.80',
+        '2024-06,31.20',
+        '2024-07,32.10',
+        '2024-08,31.40',
+        '2024-09,30.90',
+        '2024-10,31.80',
+        '2024-11,32.40',
+        '2024-12,33.10'
+      ].join('\n');
+      document.getElementById('priceCsv').value = sample;
+      calc();
+    });
+
+    document.getElementById('clearHistory').addEventListener('click', () => {
+      document.getElementById('priceCsv').value = '';
+      calc();
+    });
+
+    // initial
+    calc();
+  </script>
+</body>
+</html>
